@@ -145,6 +145,14 @@ def cmd_animate(args):
     import matplotlib
     if args.gif:
         matplotlib.use("Agg")  # для записи GIF окно не требуется
+    else:
+        # для интерактивного окна принудительно выбираем Tk-бэкенд;
+        # без этого в собранном исполняемом файле matplotlib откатывается
+        # на неинтерактивный Agg и окно не отображается
+        try:
+            matplotlib.use("TkAgg")
+        except Exception:
+            pass
     import matplotlib.pyplot as plt
     from matplotlib import animation
 
@@ -289,6 +297,12 @@ def main(argv=None):
     # корректный вывод кириллицы в консоли Windows
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if argv is None:
+        argv = sys.argv[1:]
+    # запуск без аргументов (например, двойным щелчком по файлу) —
+    # показываем анимацию с параметрами по умолчанию
+    if not argv:
+        argv = ["animate"]
     args = build_parser().parse_args(argv)
     if args.command == "animate":
         cmd_animate(args)
