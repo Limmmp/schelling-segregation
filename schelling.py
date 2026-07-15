@@ -293,6 +293,100 @@ def build_parser():
     return p
 
 
+def settings_dialog():
+    """Окно выбора параметров перед запуском модели.
+
+    Показывается при запуске без аргументов (например, двойным щелчком по
+    исполняемому файлу). Возвращает список аргументов командной строки или
+    None, если пользователь закрыл окно, не запустив модель.
+    """
+    import tkinter as tk
+    from tkinter import messagebox
+
+    root = tk.Tk()
+    root.title("Модель сегрегации Шеллинга")
+    root.resizable(False, False)
+
+    mode = tk.StringVar(value="animate")
+    # ключ: (подпись, значение по умолчанию, только для режимов)
+    fields = [
+        ("size", "Размер сетки N", "50", ("animate", "experiment")),
+        ("density", "Плотность заселения (0..1)", "0.9", ("animate", "experiment")),
+        ("ratio", "Доля агентов 1-го типа (0..1)", "0.5", ("animate", "experiment")),
+        ("tolerance", "Терпимость T (0..1)", "0.4", ("animate",)),
+        ("steps", "Лимит поколений", "200", ("animate", "experiment")),
+        ("seed", "Зерно (пусто — случайно)", "", ("animate", "experiment")),
+        ("tstep", "Шаг терпимости", "0.1", ("experiment",)),
+        ("runs", "Прогонов на точку", "5", ("experiment",)),
+    ]
+    entries, labels = {}, {}
+    result = {"argv": None}
+
+    tk.Label(root, text="Параметры моделирования",
+             font=("Segoe UI", 11, "bold")).grid(
+        row=0, column=0, columnspan=2, padx=12, pady=(12, 8))
+
+    frm_mode = tk.Frame(root)
+    frm_mode.grid(row=1, column=0, columnspan=2, pady=(0, 8))
+    tk.Label(frm_mode, text="Режим:").pack(side="left", padx=(0, 6))
+    tk.Radiobutton(frm_mode, text="Анимация", variable=mode,
+                   value="animate").pack(side="left")
+    tk.Radiobutton(frm_mode, text="Эксперимент", variable=mode,
+                   value="experiment").pack(side="left")
+
+    for i, (key, label, default, _modes) in enumerate(fields, start=2):
+        lbl = tk.Label(root, text=label, anchor="w")
+        lbl.grid(row=i, column=0, sticky="w", padx=(12, 6), pady=2)
+        ent = tk.Entry(root, width=14)
+        ent.insert(0, default)
+        ent.grid(row=i, column=1, sticky="e", padx=(0, 12), pady=2)
+        entries[key], labels[key] = ent, lbl
+
+    def update_state(*_):
+        # неактивные для выбранного режима поля показываем серым
+        for key, _label, _default, modes in fields:
+            active = mode.get() in modes
+            entries[key].config(state="normal" if active else "disabled")
+            labels[key].config(fg="black" if active else "gray")
+
+    mode.trace_add("write", update_state)
+    update_state()
+
+    def on_run():
+        m = mode.get()
+        v = {k: entries[k].get().strip() for k in entries}
+        try:
+            int(v["size"]); int(v["steps"])
+            float(v["density"]); float(v["ratio"])
+            if v["seed"]:
+                int(v["seed"])
+            if m == "animate":
+                float(v["tolerance"])
+            else:
+                float(v["tstep"]); int(v["runs"])
+        except ValueError:
+            messagebox.showerror("Ошибка ввода",
+                                 "Проверьте правильность введённых значений.")
+            return
+        argv = [m, "--size", v["size"], "--density", v["density"],
+                "--ratio", v["ratio"], "--steps", v["steps"]]
+        if v["seed"]:
+            argv += ["--seed", v["seed"]]
+        if m == "animate":
+            argv += ["--tolerance", v["tolerance"]]
+        else:
+            argv += ["--tstep", v["tstep"], "--runs", v["runs"]]
+        result["argv"] = argv
+        root.destroy()
+
+    tk.Button(root, text="Запустить", width=16, command=on_run).grid(
+        row=len(fields) + 2, column=0, columnspan=2, pady=(10, 12))
+
+    root.eval("tk::PlaceWindow . center")
+    root.mainloop()
+    return result["argv"]
+
+
 def main(argv=None):
     # корректный вывод кириллицы в консоли Windows
     if hasattr(sys.stdout, "reconfigure"):
@@ -300,9 +394,14 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
     # запуск без аргументов (например, двойным щелчком по файлу) —
-    # показываем анимацию с параметрами по умолчанию
+    # предлагаем выбрать параметры в диалоговом окне
     if not argv:
-        argv = ["animate"]
+        try:
+            argv = settings_dialog()
+        except Exception:
+            argv = ["animate"]  # если графическая среда недоступна
+        if argv is None:
+            return  # пользователь закрыл окно, не запустив модель
     args = build_parser().parse_args(argv)
     if args.command == "animate":
         cmd_animate(args)
