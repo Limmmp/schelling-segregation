@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# PyInstaller build artifacts
+build/
+build_pyi/
+*.spec
+
+# Результаты запусков (генерируются программой)
+segregation_vs_tolerance.png
+segregation_vs_tolerance.csv
+demo.gif
+test.png
+test.csv
+
+# Каталог подготовки отчёта (не относится к программе)
+report/
